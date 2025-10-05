@@ -1,4 +1,3 @@
-# src/infer.py
 from __future__ import annotations
 from pathlib import Path
 import json
@@ -25,7 +24,7 @@ def load_artifacts(art_dir: Path = ART):
 
     model = joblib.load(model_path)
 
-    # Prefer the JSON feature list IF its length matches the model feature count
+    
     n_model_feats = None
     try:
         n_model_feats = int(model.booster_.num_feature())
@@ -38,7 +37,6 @@ def load_artifacts(art_dir: Path = ART):
         if n_model_feats is None or len(features_json) == n_model_feats:
             features = list(features_json)
         else:
-            # fall back to model's own feature names
             features = list(model.booster_.feature_name())
     else:
         features = list(model.booster_.feature_name())
@@ -57,7 +55,7 @@ def prepare_features(df_raw: pd.DataFrame):
     df_feat, feats = build_features_v3(df_raw, include_bucket=True)
 
     keep = [c for c in ["date_id", "stock_id", "seconds_in_bucket", "target"] if c in df_feat.columns]
-    # avoid duplicates: remove any features that are also in 'keep'
+
     feats_no_dup = [c for c in feats if c not in keep]
 
     if keep:
@@ -65,7 +63,7 @@ def prepare_features(df_raw: pd.DataFrame):
     else:
         df_feat = df_feat[feats_no_dup]
 
-    # final safety: drop duplicated column names, keep first occurrence
+
     df_feat = df_feat.loc[:, ~df_feat.columns.duplicated()]
 
     return df_feat, feats_no_dup
@@ -82,7 +80,7 @@ def predict_df(model, df_feat: pd.DataFrame, feats: list[str]) -> pd.DataFrame:
         if c not in df_feat.columns:
             df_feat[c] = 0.0
 
-    X = df_feat[feats].astype("float32").values  # exact order expected by the model
+    X = df_feat[feats].astype("float32").values 
     preds = model.predict(X)
 
     out = df_feat.copy()
