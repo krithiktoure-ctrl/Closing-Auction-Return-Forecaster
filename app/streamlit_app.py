@@ -4,15 +4,12 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# ---------- make sure "src/" is importable ----------
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.infer import load_artifacts, prepare_features, predict_df  # noqa: E402
-# ----------------------------------------------------
+from src.infer import load_artifacts, prepare_features, predict_df  
 
-# ---------- light, compact theme tweaks ----------
 st.set_page_config(page_title="Closing Auction Return Forecaster", layout="wide")
 st.markdown(
     """
@@ -26,8 +23,6 @@ st.markdown(
 )
 st.title("Closing Auction Return Forecaster")
 
-# ---------- load v3 artifacts ----------
-# prefer artifacts/; if you keep a v3 folder, this also works
 ART_V3 = (ROOT / "artifacts") if (ROOT / "artifacts").exists() else (ROOT / "artifacts_v3")
 
 @st.cache_resource(show_spinner=False)
@@ -36,11 +31,9 @@ def _load_v3():
 
 model, FEATURES, cv_meta = _load_v3()
 
-# top chips
 m1, m2, m3 = st.columns([1.4, 1.2, 5])
 
 with m1:
-    # Render the model name as a compact HTML chip (not st.metric)
     st.markdown(
         """
         <div style="font-size:0.9rem;color:#a8a8a8;margin-bottom:0.15rem;">Model</div>
@@ -80,8 +73,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# ---------- controls (no sidebar) ----------
 cL, cR = st.columns([3, 2])
 with cL:
     uploaded = st.file_uploader("Upload CSV (raw Optiver columns)", type=["csv"])
@@ -89,7 +80,6 @@ with cR:
     nrows = st.number_input("Rows to read (sample)", min_value=1_000, max_value=200_000,
                             step=1_000, value=20_000)
 
-# ---------- load RAW data ----------
 if uploaded is not None:
     df_raw = pd.read_csv(uploaded, nrows=int(nrows))
 else:
@@ -101,20 +91,16 @@ else:
 
 st.caption(f"Raw shape: {df_raw.shape[0]:,} rows × {df_raw.shape[1]} cols")
 
-# ---------- build features & predict ----------
 with st.spinner("Building features and predicting..."):
     df_feat, feats_built = prepare_features(df_raw)
-    df_pred = predict_df(model, df_feat.copy(), FEATURES)  # aligns to model feature list
+    df_pred = predict_df(model, df_feat.copy(), FEATURES) 
 
-# display-safe (no duplicate column names)
 df_show = df_pred.loc[:, ~df_pred.columns.duplicated()]
 
-# ---------- tabs ----------
 tab_overview, tab_timeline, tab_groups, tab_explain, tab_whatif, tab_export = st.tabs(
     ["Overview", "Timeline", "Group metrics", "Explain", "What-if", "Export"]
 )
 
-# ===== OVERVIEW =====
 with tab_overview:
     if "abs_error" in df_pred.columns:
         st.metric("MAE on this data (bps)", f"{df_pred['abs_error'].mean():.3f}")
@@ -122,14 +108,12 @@ with tab_overview:
     st.subheader("Preview (first 10 rows)")
     st.dataframe(df_show.head(10), use_container_width=True)
 
-    # residuals
     if "abs_error" in df_pred.columns:
         st.subheader("Residual histogram (|target - prediction|, bps)")
         hist, bins = np.histogram(df_pred["abs_error"].astype(float), bins=50)
         centers = 0.5 * (bins[1:] + bins[:-1])
         st.area_chart(pd.DataFrame({"count": hist, "bin_center": centers}).set_index("bin_center"))
 
-    # scatter sample
     if "target" in df_pred.columns:
         st.subheader("Prediction vs Target (sample)")
         samp = df_pred.sample(min(5000, len(df_pred)), random_state=0)
@@ -139,7 +123,6 @@ with tab_overview:
             ]
         )
 
-    # feature importance (gain)
     try:
         gain = model.booster_.feature_importance("gain")
         names = model.booster_.feature_name()
@@ -149,7 +132,6 @@ with tab_overview:
     except Exception:
         pass
 
-# ===== TIMELINE =====
 with tab_timeline:
     st.write("Per-stock timeline across the last 10 minutes.")
     needed = ["stock_id", "date_id", "seconds_in_bucket"]
@@ -173,7 +155,6 @@ with tab_timeline:
     else:
         st.info("Needs columns: stock_id, date_id, seconds_in_bucket")
 
-# ===== GROUP METRICS =====
 with tab_groups:
     if "abs_error" in df_pred.columns:
         g1, g2 = st.columns(2)
@@ -194,11 +175,10 @@ with tab_groups:
     else:
         st.info("This tab needs a 'target' column to compute errors.")
 
-# ===== EXPLAIN (optional SHAP) =====
 with tab_explain:
     st.write("Local explanation for a single row (top SHAP contributions).")
     try:
-        import shap  # install with: pip install shap
+        import shap
         explainer = shap.TreeExplainer(model.booster_)
         idx = st.number_input("Row index to explain", min_value=0, max_value=len(df_feat)-1, step=1, value=0)
         x = df_feat.loc[idx, FEATURES].astype("float32").values.reshape(1, -1)
@@ -213,7 +193,6 @@ with tab_explain:
         st.info("Install SHAP to enable this tab: `pip install shap`")
         st.caption(f"(Reason: {e})")
 
-# ===== WHAT-IF =====
 with tab_whatif:
     st.write("Pick a row, tweak a few features, and see the new prediction.")
     idx = st.number_input("Row index to edit", min_value=0, max_value=len(df_feat)-1, step=1, value=0)
@@ -249,7 +228,6 @@ with tab_whatif:
         w1.metric("Baseline prediction (bps)", f"{baseline_pred:.3f}")
         w2.metric("What-if prediction (bps)", f"{new_pred:.3f}", f"{new_pred - baseline_pred:+.3f}")
 
-# ===== EXPORT =====
 with tab_export:
     st.write("Download predictions with ids & (if available) target.")
     st.download_button(
